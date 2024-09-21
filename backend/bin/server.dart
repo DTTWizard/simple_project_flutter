@@ -11,7 +11,8 @@ final _router = Router()
   ..get('/api/v1/<message>', _echoHandler)
   ..post('/api/v1/submit', _submitHandler)
   ..put('/api/v1/update', _updateHandler)
-  ..delete('/api/v1/delete/<id>', _deleteHandler);
+  ..delete('/api/v1/delete/<id>', _deleteHandler)
+  ..post('/api/v1/calculate-age', _calculateAgeHandler);  // Thêm API tính tuổi
 
 /// Hàm xử lý yêu cầu tại đường dẫn gốc '/'
 Response _rootHandler(Request req) {
@@ -41,6 +42,33 @@ Future<Response> _submitHandler(Request req) async {
       return _jsonResponse({'message': 'Chào mừng $name! Cảm ơn vì đã tham gia!'});
     } else {
       return _badRequestResponse('Vui lòng cung cấp tên hợp lệ.');
+    }
+  } catch (e) {
+    return _errorResponse('Yêu cầu không hợp lệ. ${e.toString()}', statusCode: 400);
+  }
+}
+
+/// Hàm xử lý yêu cầu POST tại đường dẫn '/api/v1/calculate-age'
+Future<Response> _calculateAgeHandler(Request req) async {
+  try {
+    final data = await _parseJson(req);
+    final yearOfBirth = data['yearOfBirth'] as int?;
+
+    if (yearOfBirth != null && yearOfBirth > 0) {
+      // Lấy năm hiện tại từ thời gian thực
+      final currentYear = DateTime.now().year;
+
+      // Tính toán tuổi
+      final age = currentYear - yearOfBirth;
+
+      return _jsonResponse({
+        'message': 'Tuổi của bạn hiện tại là $age.',
+        'yearOfBirth': yearOfBirth,
+        'currentYear': currentYear,
+        'age': age
+      });
+    } else {
+      return _badRequestResponse('Vui lòng cung cấp năm sinh hợp lệ.');
     }
   } catch (e) {
     return _errorResponse('Yêu cầu không hợp lệ. ${e.toString()}', statusCode: 400);
@@ -103,15 +131,40 @@ final _headers = {'Content-Type': 'application/json'};
 
 /// Hàm chính để chạy server
 void main(List<String> args) async {
+  // Lắng nghe trên tất cả các địa chỉ IPv4
   final ip = InternetAddress.anyIPv4;
 
-  final handler = Pipeline()
-      .addMiddleware(logRequests()) // Ghi log tất cả các yêu cầu
-      .addHandler(_router.call);
+  // Cấu hình CORS middleware
+  final corsHeader = createMiddleware(
+    requestHandler: (req) {
+      if (req.method == 'OPTIONS') {
+        return Response.ok('', headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, HEAD',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        });
+      }
+      return null;
+    },
+    responseHandler: (res) {
+      return res.change(headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, HEAD',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      });
+    },
+  );
 
+  // Cấu hình pipeline để logs các requests và middleware
+  final handler = Pipeline()
+      .addMiddleware(corsHeader) // Thêm middleware xử lý CORS
+      .addMiddleware(logRequests())
+      .addHandler(_router);
+
+  // Đọc cổng từ biến môi trường hoặc sử dụng mặc định là 8080
   final port = int.parse(Platform.environment['PORT'] ?? '8080');
-  
-  final server = await serve(handler, ip, port);
-  
-  print('🌍 Server đang hoạt động tại cổng ${server.port}. Sẵn sàng cho mọi yêu cầu!');
+
+  // Khởi chạy server tại địa chỉ và cổng chỉ định
+ final server = await serve(handler, ip, port);
+  print('Server đang chạy tại http://${server.address.host}:${server.port}');
 }

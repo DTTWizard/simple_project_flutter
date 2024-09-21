@@ -16,10 +16,13 @@ class MainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false, // Tắt biểu tượng debug ở góc phải trên
       title: 'Ứng dụng full-stack Flutter đơn giản',
-      home: MyHomePage(),
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: const MyHomePage(),
     );
   }
 }
@@ -117,21 +120,25 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Ứng dụng full-stack Flutter đơn giản')),
+      appBar: AppBar(title: const Text('Ứng dụng Flutter kết nối server')),
       body: Padding(
         padding: const EdgeInsets.all(18.0),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             TextField(
               controller: controller,
-              decoration: const InputDecoration(labelText: 'Tên'),
+              decoration: const InputDecoration(
+                labelText: 'Nhập tên của bạn',
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 20),
-            FilledButton(
+            ElevatedButton(
               onPressed: isLoading ? null : sendName, // Disable button khi loading
               child: isLoading
                   ? const CircularProgressIndicator() // Hiện indicator khi loading
-                  : const Text('Gửi'),
+                  : const Text('Gửi tên'),
             ),
             // Hiển thị thông điệp phản hồi từ server
             Padding(
@@ -139,6 +146,7 @@ class _MyHomePageState extends State<MyHomePage> {
               child: Text(
                 responseMessage,
                 style: Theme.of(context).textTheme.titleLarge,
+                textAlign: TextAlign.center,
               ),
             ),
           ],
