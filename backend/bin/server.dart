@@ -29,18 +29,23 @@ Response _echoHandler(Request req) {
 }
 
 /// Hàm xử lý yêu cầu POST tại đường dẫn '/api/v1/submit'
+/// Hàm xử lý yêu cầu POST tại đường dẫn '/api/v1/submit'
 Future<Response> _submitHandler(Request req) async {
   try {
     final data = await _parseJson(req);
     final name = data['name'] as String?;
-    final yearOfBirth = data['yearOfBirth'] as int?;
+    final dateOfBirth = data['dateOfBirth'] as String?;
 
-    if (name != null && name.isNotEmpty && yearOfBirth != null && yearOfBirth > 0) {
+    if (name != null && name.isNotEmpty && dateOfBirth != null) {
+      final dob = DateTime.parse(dateOfBirth);
+      final currentYear = DateTime.now().year;
+      final age = currentYear - dob.year;
+
       return _jsonResponse({
-        'message': 'Chào mừng $name! Bạn sinh năm $yearOfBirth.'
+        'message': 'Chào mừng $name! Bạn sinh ngày ${dob.toLocal()}. Bạn hiện $age tuổi.'
       });
     } else {
-      return _badRequestResponse('Vui lòng cung cấp tên và năm sinh hợp lệ.');
+      return _badRequestResponse('Vui lòng cung cấp tên và ngày sinh hợp lệ.');
     }
   } catch (e) {
     return _errorResponse('Yêu cầu không hợp lệ. ${e.toString()}', statusCode: 400);

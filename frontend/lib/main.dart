@@ -1,136 +1,207 @@
-import 'dart:convert';
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
-  runApp(const MainApp());
+  runApp(MyApp());
 }
 
-class MainApp extends StatelessWidget {
-  const MainApp({super.key});
-
+class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Ứng dụng Kết Nối Server',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: const MyHomePage(),
+      title: 'Demo API',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: TrangChu(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key});
-
+class TrangChu extends StatefulWidget {
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  _TrangChuState createState() => _TrangChuState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController yearOfBirthController = TextEditingController();
-  String responseMessage = '';
-  bool isLoading = false;
+class _TrangChuState extends State<TrangChu> {
+  String _thongDiepGuiDuLieu = "";
+  final _tenController = TextEditingController();
+  DateTime? _ngaySinhDuocChon;
+  int? _viTriChinhSua;
 
-  String getBackendUrl() {
-    if (kIsWeb) {
-      return 'http://localhost:8080';
-    } else if (Platform.isAndroid) {
-      return 'http://10.0.2.2:8080';
-    } else {
-      return 'http://localhost:8080';
-    }
-  }
+  // Danh sách để lưu thông tin đã nhập và trạng thái check
+  List<Map<String, dynamic>> _danhSachThongTin = [];
 
-  Future<void> submit() async {
-    final String name = nameController.text.trim();
-    final String yearOfBirth = yearOfBirthController.text.trim();
-
-    if (name.isEmpty || yearOfBirth.isEmpty || int.tryParse(yearOfBirth) == null) {
-      setState(() {
-        responseMessage = 'Vui lòng nhập tên và năm sinh hợp lệ!';
-      });
+  // Hàm để gửi yêu cầu POST đến endpoint '/submit'
+  Future<void> _guiDuLieu() async {
+    if (_tenController.text.isEmpty || _ngaySinhDuocChon == null) {
       return;
     }
 
+    final response = await http.post(
+      Uri.parse('http://localhost:8080/api/v1/submit'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'name': _tenController.text,
+        'dateOfBirth': _ngaySinhDuocChon!.toIso8601String(),
+      }),
+    );
+
+    final data = json.decode(response.body);
     setState(() {
-      isLoading = true;
-      responseMessage = '';
-    });
+      _thongDiepGuiDuLieu = data['message'] ?? 'Có lỗi xảy ra';
 
-    final String backendUrl = getBackendUrl();
-    final Uri url = Uri.parse('$backendUrl/api/v1/submit');
-
-    try {
-      final response = await http.post(url,
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode({'name': name, 'yearOfBirth': int.parse(yearOfBirth)}));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        setState(() {
-          responseMessage = data['message'];
+      if (_viTriChinhSua == null) {
+        // Thêm thông tin mới nếu không đang chỉnh sửa
+        _danhSachThongTin.add({
+          'name': _tenController.text,
+          'dateOfBirth': _ngaySinhDuocChon,
+          'message': _thongDiepGuiDuLieu,
+          'checked': false, // Mặc định chưa được check
         });
       } else {
-        setState(() {
-          responseMessage = 'Không nhận được phản hồi từ server';
-        });
+        // Cập nhật thông tin khi đang chỉnh sửa
+        _danhSachThongTin[_viTriChinhSua!] = {
+          'name': _tenController.text,
+          'dateOfBirth': _ngaySinhDuocChon,
+          'message': _thongDiepGuiDuLieu,
+          'checked': _danhSachThongTin[_viTriChinhSua!]['checked'],
+        };
+        _viTriChinhSua = null;
       }
-    } catch (e) {
+
+      // Reset các trường nhập sau khi gửi
+      _tenController.clear();
+      _ngaySinhDuocChon = null;
+    });
+  }
+
+  // Hàm chọn ngày sinh
+  Future<void> _chonNgaySinh(BuildContext context) async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+    );
+
+    if (pickedDate != null && pickedDate != _ngaySinhDuocChon) {
       setState(() {
-        responseMessage = 'Đã xảy ra lỗi: ${e.toString()}';
-      });
-    } finally {
-      setState(() {
-        isLoading = false;
+        _ngaySinhDuocChon = pickedDate;
       });
     }
+  }
+
+  // Hàm để chỉnh sửa thông tin
+  void _suaThongTin(int index) {
+    setState(() {
+      _tenController.text = _danhSachThongTin[index]['name'];
+      _ngaySinhDuocChon = _danhSachThongTin[index]['dateOfBirth'];
+      _viTriChinhSua = index;
+    });
+  }
+
+  // Hàm để xóa thông tin
+  void _xoaThongTin(int index) {
+    setState(() {
+      _danhSachThongTin.removeAt(index);
+    });
+  }
+
+  // Hàm để cập nhật trạng thái check của mỗi hàng
+  void _toggleChecked(int index, bool? value) {
+    setState(() {
+      _danhSachThongTin[index]['checked'] = value ?? false;
+    });
+  }
+
+  // Xây dựng bảng dữ liệu từ danh sách
+  Widget _xayDungBang() {
+    return DataTable(
+      columns: [
+        DataColumn(label: Text('Tên')),
+        DataColumn(label: Text('Ngày Sinh')),
+        DataColumn(label: Text('Thông Điệp')),
+        DataColumn(label: Text('Check')),
+        DataColumn(label: Text('Hành Động')),
+      ],
+      rows: _danhSachThongTin
+          .asMap()
+          .map((index, thongTin) {
+            return MapEntry(
+              index,
+              DataRow(cells: [
+                DataCell(Text(thongTin['name'] ?? '')),
+                DataCell(Text(thongTin['dateOfBirth'] != null
+                    ? thongTin['dateOfBirth'].toString().split(' ')[0]
+                    : '')),
+                DataCell(Text(thongTin['message'] ?? '')),
+                DataCell(Checkbox(
+                  value: thongTin['checked'],
+                  onChanged: (value) {
+                    _toggleChecked(index, value);
+                  },
+                )),
+                DataCell(Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.edit),
+                      onPressed: () => _suaThongTin(index),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.delete),
+                      onPressed: () => _xoaThongTin(index),
+                    ),
+                  ],
+                )),
+              ]),
+            );
+          })
+          .values
+          .toList(),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Ứng dụng Kết Nối Server')),
+      appBar: AppBar(
+        title: Text('Demo Dart'),
+      ),
       body: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Thông tin sinh viên
-            Align(
-              alignment: Alignment.topRight,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: const [
-                  Text('Mã SV: 123456', style: TextStyle(fontWeight: FontWeight.bold)),
-                  Text('Họ tên: Nguyễn Văn A', style: TextStyle(fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
+          children: <Widget>[
             TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Nhập tên của bạn'),
+              controller: _tenController,
+              decoration: InputDecoration(labelText: 'Nhập tên của bạn'),
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: yearOfBirthController,
-              decoration: const InputDecoration(labelText: 'Nhập năm sinh của bạn'),
-              keyboardType: TextInputType.number,
+            Row(
+              children: [
+                Text(
+                  _ngaySinhDuocChon == null
+                      ? 'Chọn ngày sinh của bạn'
+                      : 'Ngày sinh: ${_ngaySinhDuocChon.toString().split(' ')[0]}',
+                ),
+                SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: () => _chonNgaySinh(context),
+                  child: Text('Chọn Ngày'),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: isLoading ? null : submit,
-              child: isLoading ? const CircularProgressIndicator() : const Text('Gửi thông tin'),
+              onPressed: _guiDuLieu,
+              child: Text(_viTriChinhSua == null ? 'Gửi Dữ Liệu' : 'Cập Nhật'),
             ),
-            const SizedBox(height: 20),
-            Text(
-              responseMessage,
-              style: const TextStyle(fontSize: 16, color: Colors.black),
-              textAlign: TextAlign.center,
+            Text(_thongDiepGuiDuLieu),
+            SizedBox(height: 20),
+            Expanded(
+              child: SingleChildScrollView(
+                child: _xayDungBang(),
+              ),
             ),
           ],
         ),
